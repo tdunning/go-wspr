@@ -1,0 +1,25 @@
+.program timer
+    set x, 2                 ; magic number to send to DMA on rising edges
+.wrap_target
+    wait 1 gpio 10           ; waits for pps to rise
+    in  x, 32                ; send the uint32 constant "2" to the fifo
+    wait 0 gpio 10           ; waits for pps to drop
+.wrap
+
+% go {
+//go:build rp2040
+
+package wspr
+import (
+	pio "github.com/tinygo-org/pio/rp2-pio"
+)
+
+func TimerInit(sm pio.StateMachine) (pio.StateMachineConfig, uint8, error) {
+	offset, err:= sm.PIO().AddProgram(timerInstructions, timerOrigin)
+	cfg := timerProgramDefaultConfig(offset)
+	cfg.SetInShift(false, true, 32)
+	sm.Init(offset, cfg)
+	return cfg, offset, err
+}
+
+%}
