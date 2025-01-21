@@ -37,7 +37,7 @@ at much finer than millihertz.
 Another example, also from radio, involves compensating for frequency drift by measuring
 the generated signal against a reference such as a GPS receivers pulse-per-second output.
 As the frequency drifts, the value of the drift can be included in the computation of
-frequency divisors. With nearest_fraction, you can still get millihertz accuracy which
+frequency divisors. With nearestFraction, you can still get millihertz accuracy which
 allows 10 ppb frequency stability relative to your reference even up into the VHF.
 
 The precision you can get varies depending on the frequency you are targeting. To get
@@ -45,7 +45,7 @@ this high precision at all frequencies, you may need to be able to adjust the so
 frequency which is easily done with most frequency generators like the Si5351.
 */
 
-func nearest_fraction(a, b, max_denominator uint64) (c, d uint64, eps float64) {
+func NearestFraction(a, b, max_denominator uint64) (c, d uint64, eps float64) {
 	c, d = continuedFraction(a, b, 0, 1, max_denominator)
 	eps = float64(a)/float64(b) - float64(c)/float64(d)
 	return c, d, eps

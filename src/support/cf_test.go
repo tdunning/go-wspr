@@ -17,6 +17,7 @@
 package support
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -93,6 +94,7 @@ func Test_limit(t *testing.T) {
 		{5, 3, 1},
 		{7, 22, 7},
 		{10, 22, 7},
+		{70, 22, 7},
 		{105, 22, 7},
 		{106, 333, 106},
 		{110, 333, 106},
@@ -140,7 +142,7 @@ func Test_nearest_fraction_wspr_frequencies(t *testing.T) {
 		for i := 0; i < 4; i++ {
 			f := f0 + float64(i)*df
 			r := top / f
-			b, c, _ := nearest_fraction(uint64(math.Round(r*140e9)), uint64(140e9), max_denominator)
+			b, c, _ := NearestFraction(uint64(math.Round(r*140e9)), uint64(140e9), max_denominator)
 			f1 := top * float64(c) / float64(b)
 			a := b / c
 			b = b - a*c
@@ -170,16 +172,33 @@ func Test_nearest_fraction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotC, gotD, gotEps := nearest_fraction(tt.args.a, tt.args.b, tt.args.max_denominator)
+			gotC, gotD, gotEps := NearestFraction(tt.args.a, tt.args.b, tt.args.max_denominator)
 			if gotC != tt.wantC {
-				t.Errorf("nearest_fraction() gotC = %v, want %v", gotC, tt.wantC)
+				t.Errorf("nearestFraction() gotC = %v, want %v", gotC, tt.wantC)
 			}
 			if gotD != tt.wantD {
-				t.Errorf("nearest_fraction() gotD = %v, want %v", gotD, tt.wantD)
+				t.Errorf("nearestFraction() gotD = %v, want %v", gotD, tt.wantD)
 			}
 			if gotEps != tt.wantEps {
-				t.Errorf("nearest_fraction() gotEps = %v, want %v", gotEps, tt.wantEps)
+				t.Errorf("nearestFraction() gotEps = %v, want %v", gotEps, tt.wantEps)
 			}
 		})
+	}
+}
+
+func Test_generator(t *testing.T) {
+	df := 1.4648
+	for _, f0 := range []float64{28_124_600.0, 144_490_500.0} {
+		for _, divider := range []float64{4.0, 6.0, 28.0} {
+			for i := 0; i < 4; i++ {
+				f := f0 + float64(i)*df/10
+				r := uint64(math.Round(divider * f / 25e6 * 1000_000_000_000.0))
+				ax, c, _ := NearestFraction(r, 1000_000_000_000, uint64(1)<<20)
+				a := ax / c
+				b := ax - c*a
+				f_out := 25.0e6 * (float64(a) + float64(b)/float64(c)) / divider
+				fmt.Printf("| %3d | %6d | %6d | %.5f | %.5f |\n", a, b, c, f_out, f_out-f0)
+			}
+		}
 	}
 }
