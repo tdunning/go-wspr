@@ -25,7 +25,7 @@ This repository includes some WIP related to support for the RP2350. That code
 is in the src/machine_x directory and can safely be ignored if you are here for
 the high resolution frequency synthesis.
 
-# High resolution precision counting
+# High resolution counting
 
 In order to discipline a synthesized frequency generator, it is first necessary
 to determine measure what the output frequency and then to adjust it. The
@@ -35,6 +35,14 @@ PWM counters are only 16 bits long, there isn't an easy way to sample the PWM
 counters from an external time reference and most software for sampling the PWM
 counters is subject to several microseconds of jitter in the response time even
 if there are no surprises such as garbarge collection.
+
+You can find other efforts to use the Pico as a frequency counter in 
+[Richard Kendall's blog](https://rjk.codes/post/building-a-frequency-counter/), 
+or in [Jeremy Bentham's work](https://iosoft.blog/2023/07/30/picofreq/). 
+The novelty in my efforts is in chaining PWMs together and then using the 
+PIO and DMA together to get very stable values of microsecond time and 
+counter state into a buffer without worrying about counter wraparound 
+between samples.
 
 ## How the PWM hardware works
 
@@ -65,7 +73,7 @@ If we go for the absurd and use 48 bits, the same 100MHz counter won't roll over
 for over a month.
 
 So then, the question is how to read these PWM counters and still retain as much
-accuracy as we now have as lovely precision.
+accuracy as we now have such lovely precision.
 
 ## Reading the counters
 
