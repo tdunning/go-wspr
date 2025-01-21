@@ -201,8 +201,12 @@ None of the WSPR bands above 10m can be addressed by this mechanism.
 ## Number theory to the rescue
 
 There is a way to fix this problem of resolution at higher frequencies. The
-trick is to vary both numerator and denominator to control the PLL frequency. It
-would appear at first that simply setting the denominator (c) to as large a
+trick is to vary both numerator and denominator to control the PLL frequency 
+using continued fractions to find an optimal rational approximation of our 
+desired value. This is the same method that is used by Glenn Elmore to produce
+[high quality disciplined oscillators](http://www.sonic.net/~n6gn/OSHW/AB/RE/Reference2.html).
+
+It would appear at first that simply setting the denominator (c) to as large a
 value as possible would give the finest resolution, but this is not true. The
 following table shows how this works.
 
