@@ -14,15 +14,4 @@
  * limitations under the License.
  */
 
-package wspr
-
-import (
-	"device/rp"
-	"wspr/src/support"
-)
-
-func MicroTime() uint64 {
-	tx := rp.TIMER
-	th1, tl1, th2, tl2 := tx.TIMERAWH.Get(), tx.TIMERAWL.Get(), tx.TIMERAWH.Get(), tx.TIMERAWL.Get()
-	return support.ReduceObservation(1<<32, th1, tl1, th2, tl2)
-}
+package control

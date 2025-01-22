@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package wspr
+package pico
 
 import (
 	"device/rp"
@@ -27,6 +27,7 @@ import (
 	"time"
 	"unsafe"
 	"wspr/src/machine_x"
+	"wspr/src/support"
 )
 
 /*
@@ -402,8 +403,8 @@ func (d DmaSampler) Collect() Sample {
 // or (B2, A2) as our result.
 func collectSample(s Sampler) Sample {
 	r := s.Collect()
-	r.Count = ReduceObservation(fastCycle, r.B1, r.A1, r.B2, r.A2)
-	r.T = ReduceObservation(1<<32, r.TH1, r.TL1, r.TH2, r.TL2)
+	r.Count = support.ReduceObservation(fastCycle, r.B1, r.A1, r.B2, r.A2)
+	r.T = support.ReduceObservation(1<<32, r.TH1, r.TL1, r.TH2, r.TL2)
 	return r
 }
 

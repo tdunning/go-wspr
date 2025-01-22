@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"machine"
 	"time"
-	"wspr/src/wspr"
+	"wspr/src/pico"
 )
 
 func main() {
-	samples, err := wspr.Setup()
+	samples, err := pico.Setup()
 	if err != nil {
 		panic("failed setup: " + err.Error())
 	}
@@ -45,9 +45,9 @@ func main() {
 		Mode: machine.PinOutput,
 	})
 
-	t0 := wspr.MicroTime()
+	t0 := pico.MicroTime()
 
-	fmt.Printf("setup complete %s\n", wspr.InterruptMessage(wspr.ErrorFlag.Get()))
+	fmt.Printf("setup complete %s\n", pico.InterruptMessage(pico.ErrorFlag.Get()))
 	for i := 0; i < 100; i++ {
 		select {
 		case <-timeout.C:
@@ -60,18 +60,18 @@ func main() {
 			if s.Count < k0 {
 				offset = 50_000 * 50_000
 			}
-			if wspr.ErrorFlag.Get() != 0 {
-				fmt.Printf("ERROR = %s\n", wspr.InterruptMessage(wspr.ErrorFlag.Get()))
+			if pico.ErrorFlag.Get() != 0 {
+				fmt.Printf("ERROR = %s\n", pico.InterruptMessage(pico.ErrorFlag.Get()))
 			}
 
 			dt := float64(s.T-t0) * 1e-6
-			fmt.Printf("fifo = %d\n", wspr.PwmReaders.Sm.RxFIFOLevel())
+			fmt.Printf("fifo = %d\n", pico.PwmReaders.Sm.RxFIFOLevel())
 			fmt.Printf("Δk = %d, Δt = %.7f, t = %.7f, Δa = %d, f = %.6f\n",
-				s.Count-k0+offset, dt, float64(wspr.MicroTime()-s.T)*1e-6, s.A2-s.A1, float64(s.Count-k0+offset)/dt)
+				s.Count-k0+offset, dt, float64(pico.MicroTime()-s.T)*1e-6, s.A2-s.A1, float64(s.Count-k0+offset)/dt)
 			if s.B1 != s.B2 {
 				fmt.Printf("   b1,a1,b2,a2,b3 = %d, %d, %d, %d\n", s.B1, s.A1, s.B2, s.A2)
 			}
-			fmt.Printf("   wait count = %d\n", wspr.WaitCounter.Get())
+			fmt.Printf("   wait count = %d\n", pico.WaitCounter.Get())
 			k0 = s.Count
 			t0 = s.T
 			missedSamples = 0

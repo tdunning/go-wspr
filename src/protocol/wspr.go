@@ -18,7 +18,7 @@
 This file contains code that implements the WSPR protocol
 */
 
-package support
+package protocol
 
 import (
 	"errors"

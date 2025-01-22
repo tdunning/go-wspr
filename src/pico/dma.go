@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package wspr
+package pico
 
 import (
 	"device/rp"
@@ -101,6 +101,8 @@ func (ch DmaChannel) IsValid() bool {
 func (ch DmaChannel) ChannelIndex() uint8 { return ch.idx }
 
 // HW returns the hardware registers for this DMA channel.
+//
+//goland:noinspection GoExportedFuncWithUnexportedType
 func (ch DmaChannel) HW() *dmaChannelHW { return ch.hw }
 
 func (ch DmaChannel) Init(cfg dmaChannelConfig) {
@@ -109,6 +111,8 @@ func (ch DmaChannel) Init(cfg dmaChannelConfig) {
 }
 
 // CurrentConfig copies the actual configuration of the DMA channel.
+//
+//goland:noinspection GoExportedFuncWithUnexportedType
 func (ch DmaChannel) CurrentConfig() dmaChannelConfig {
 	ch.mustValid()
 	return dmaChannelConfig{CTRL: ch.HW().CTRL_TRIG.Get()}
@@ -135,7 +139,7 @@ type dmaRegisterOffset uint32
 
 // register offsets for DMA channels
 //
-//goland:noinspection GoSnakeCaseUsage
+//goland:noinspection GoSnakeCaseUsage,GoUnusedConst
 const (
 	DMA_READ_ADDR = dmaRegisterOffset(4 * iota)
 	DMA_WRITE_ADDR
@@ -186,7 +190,7 @@ func dmaInterruptEnable(channel uint8, enable bool) {
 
 // 2.5.3.1. System DREQ Table. Note: Another caveat is that multiple channels should not be connected to the same DREQ.
 //
-//goland:noinspection GoSnakeCaseUsage
+//goland:noinspection GoSnakeCaseUsage,GoUnusedConst
 const (
 	_DREQ_PIO0_TX0   = 0x0
 	_DREQ_PIO0_TX1   = 0x1
@@ -400,6 +404,7 @@ type dmaChannelConfig struct {
 	CTRL uint32
 }
 
+//goland:noinspection GoExportedFuncWithUnexportedType
 func DefaultDMAConfig(channel uint8) (cc dmaChannelConfig) {
 	cc.SetRing(false, 0)
 	cc.SetBSwap(false)
@@ -481,10 +486,7 @@ func setBitPos(cc *uint32, pos uint32, bit bool) {
 	}
 }
 
-func ptrAs[T ~uint32](ptr *T) uint32 {
-	return uint32(uintptr(unsafe.Pointer(ptr)))
-}
-
+//goland:noinspection GoUnusedGlobalVariable
 var (
 	errTimeout           = errors.New("piolib:timeout")
 	errContentionTimeout = errors.New("piolib:contention timeout")
