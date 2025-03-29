@@ -48,34 +48,36 @@ isn't well-defined making the frequency measurements subject to noise.
 
 To deal with these issues we do the following here:
 
-- PWM0 runs a counter at the full speed of the external signal
+- PWM0 runs a counter at the full speed of the external signal. This PWM is configured
+to produce the divided signal on an output pin
 
-- PWM1 runs a counter at 1/8192 of the full speed using an internal divider. PWM0 and
-PWM1 are triggered at the same time. This means that the top 3 bits of PWM0 will match
-the bottom 3 bits of PWM1 subject to a tiny bit of jitter since we can't read the
-two values at exactly the same time.
+- PWM1 runs a counter that is clocked by the output of PWM0. This requires a connection 
+from the output pin for PWM0 to the input pin for PWM1.
 
-- PWM2 runs a clock that increments 1000 times per second from the system clock. This
-will wrap around every 65.536 seconds, but we can compensate by noticing when the count
-decreases between samples.
+- the PIO waits until the negative transition on the external PPS signal and moves a 
+transfer length to DMA0 to trigger it to move a full configuration to DMA1
 
-- DMA0 transfers control blocks to DMA1 to move the PWM0 counter, the PWM1 counter,
-the PWM2 counter and the PWM0 counter again to the PIO. Each time DMA0 is triggered,
-it moves the next control block (consisting only of the READ address) which causes the
-next value to be moved.
+- DMA0 is triggered by the PIO and moves a data count to DMA1
 
-- DMA1 moves data to the PIO output FIFO and then chains back to DMA0
+- DMA1 transfers a configuration to the control registers of DMA2 which cause it to
+copy the count data. This configuration is a gather operation that reads both PWMs 
+and the system clock twice. The data ready signal from DMA2 is used to avoid
+overwriting the configuration too soon.
 
-- the PIO waits until the negative transition on the external PPS signal and moves four
-measurements to the output FIFO. This puts back-pressure on DMA1 (and indirectly on DMA0)
-so that we see one sample per second. That data can be read by software at any time during
-the next second.
+- DMA2 transfers both PWM counters and the processor non-monotonic clock to a memory 
+buffer. This DMA is configured and triggered by the output of the DMA1. This transfer 
+is done twice so that rollover of PWM0 and the low bits of the processor clock can 
+be accurately reconstructed.
 
-- the actual measurement to 29bit precision is reconstructed by comparing the PWM1 value to
-the PWM0 value. The PWM1 value should be the high bits of the PWM0 value and there should
-be 3 bits that overlap. The PWM0 value is sampled before and after PWM1 so that we can
-distinguish the case when PWM1 increments before we read it but after we read PWM0.
-The total time between the first and second reads of PWM0 should be only a few memory cycles.
+- the GPIO with the PPS signal from the GPS also triggers an interrupt. The interrupt
+handler reads the output buffer that was just filled by DMA1 and pushes the raw observations
+into a channel to be handled by non-interrupt code.
+
+- the actual measurement and time to 32bit precision is reconstructed by comparing the 
+repeated values for PWM0 and PWM1 and A and B (the low and high bits of the processor
+timer clock). This allows the correct value of PWM1 be attached to the value of PWM0
+and likewise for the times. The latency from the drop of the PPS to the sampling of 
+the PWMs is only a few memory cycles and the jitter is at most a machine clock cycle. 
 */
 
 //go:generate pioasm -o go timer.pio     timer.go
@@ -113,7 +115,7 @@ type controlBlock struct {
 }
 
 // transfers contains a list of DMA controls that
-// read the PWM and write to the result structure
+// read the PWM + timers and write to the result structure
 var transfers []controlBlock
 
 // WaitCounter is a counter used to measure how long we have
@@ -219,6 +221,7 @@ func setupDMA() {
 			uint32(uintptr(unsafe.Pointer(&result.a2))),
 		},
 		{
+			// this causes an end of the transfer
 			0,
 			0,
 		},
@@ -226,8 +229,6 @@ func setupDMA() {
 
 	// d1 writes to DMA_AL2_READ_ADDR and DMA_AL2_WRITE_ADDR_TRIG on d2
 	d1.DmaRegister(DMA_WRITE_ADDR).Set(uint32(d2.DmaRegisterAddress(DMA_AL2_READ_ADDR)))
-	//fmt.Printf("read = %x, write = %x\n",
-	//	d1.DmaRegister(DMA_AL1_READ_ADDR).Get(), d1.DmaRegister(DMA_AL1_WRITE_ADDR).Get())
 
 	c2 := DefaultDMAConfig(d1.ChannelIndex())
 
@@ -245,11 +246,8 @@ func setupDMA() {
 
 	dmaInterruptEnable(d2.ChannelIndex(), false)
 	d2.DmaRegister(DMA_AL2_TRANS_COUNT).Set(1)
-	fmt.Printf("  %x vs %x vs %x\n", d2.DmaRegister(DMA_AL2_CTRL).Get(), d2.HW().CTRL_TRIG.Get(), c2.CTRL)
-	fmt.Printf("  %x should be 1\n", d2.HW().TRANS_COUNT)
 
 	// arm d1
-	//dmaInterruptEnable(d1.ChannelIndex(), true)
 	d1.DmaRegister(DMA_AL1_CTRL).SetBits(rp.DMA_CH0_CTRL_TRIG_EN_Msk)
 
 	// this will need to be reset after each gather operation
@@ -306,7 +304,7 @@ func setupInterrupt() (*chan Sample, error) {
 		//PwmReaders.D1.DmaRegister(DMA_AL1_TRANS_COUNT_TRIG).Set(2)
 		// DMA should have been triggered by the time we arrive, but ...
 		for i := 0; i < 1000; i++ {
-			if result.b2.Get() != 100 {
+			if result.b1.Get() != 0 || result.b2.Get() != 100 {
 				break
 			}
 		}
@@ -324,7 +322,7 @@ func setupInterrupt() (*chan Sample, error) {
 			ErrorFlag.Set(NoDMAData)
 		}
 
-		// set up for DMA transfer
+		// set up for next DMA transfer
 		PwmReaders.D1.DmaRegister(DMA_READ_ADDR).Set(uint32(uintptr(unsafe.Pointer(&transfers[0]))))
 	})
 	if err != nil {
@@ -354,8 +352,7 @@ type DirectSampler struct{}
 func (d DirectSampler) Collect() Sample {
 	t := rp.TIMER
 	th1, tl1, th2, tl2 := t.TIMERAWH.Get(), t.TIMERAWL.Get(), t.TIMERAWH.Get(), t.TIMERAWL.Get()
-	b1, a1, b2, a2 := SlowCount(), CurrentCount(),
-		SlowCount(), CurrentCount()
+	b1, a1, b2, a2 := SlowCount(), CurrentCount(), SlowCount(), CurrentCount()
 	return Sample{
 		TH1: th1,
 		TL1: tl1,
@@ -369,10 +366,8 @@ func (d DirectSampler) Collect() Sample {
 }
 
 // DmaSampler reads data that has previously been put into a well-known place by
-// a DMA driven process. It is a little bit wrong to attach the time to this
-// sample when it is read rather than when it was actually collected, but it is
-// hard to get the current time via DMA. Note how the memory buffer is tainted to
-// make it clear whether the next sample has real data.
+// a DMA driven process. Note how the memory buffer is tainted to make it clear 
+// whether the next sample has real data yet or not
 type DmaSampler struct{}
 
 func (d DmaSampler) Collect() Sample {
@@ -386,21 +381,25 @@ func (d DmaSampler) Collect() Sample {
 		B2:  result.b2.Get(),
 		A2:  result.a2.Get(),
 	}
-	// put implausible value back in.
+	// put implausible value back in. This is implausible because the 
+	// B (high order) counter increments far too slowly for there to 
+	// ever be a difference of 100 in just a few nanoseconds.
 	result.b1.Set(0)
 	result.b2.Set(100)
 	return r
 }
 
-// collectSample retrieves a sample which consists of five consecutive samples of
+// collectSample retrieves a sample which consists of four consecutive samples of
 // the PWM counters. These samples are from the slow (B) and fast (A) counters
 // which we cannot sample at exactly the same time. This means that if we sample
 // A, then B, B might increment after A is read but before B is read. The same
 // happens if we read B, then A. To avoid these problems, we sample the counters
-// in the order B1, A1, B2, A2, B3. Since we know (assume, really) that B can
+// in the order B1, A1, B2, A2. Since we know (assume, really) that B can
 // only increment at most once during our entire sampling process we can compare
-// B1 vs B2 and B2 vs B3 (one of which must be true) and return either (B2, A1)
-// or (B2, A2) as our result.
+// B1 vs B2 to see if there has been a rollover. If there has been, we return 
+// either (B1, A1) or (B2, A1) as our result by looking to see if A1 is just
+// before an overflow (so B1,A1 is the answer) or just after (so B2, A1 is the 
+// answer)
 func collectSample(s Sampler) Sample {
 	r := s.Collect()
 	r.Count = support.ReduceObservation(fastCycle, r.B1, r.A1, r.B2, r.A2)
