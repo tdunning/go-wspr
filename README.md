@@ -296,7 +296,7 @@ a/b = \lfloor a / b \rfloor + {a \bmod b} / b
 $$
 We abbreviate this a little bit by setting $k_1 = \lfloor a / b \rfloor$ and $a_1 = {a \bmod b}$
 $$
-a/b &= k_1 + a_1 / b 
+a/b = k_1 + a_1 / b 
 $$
 At this point, we know that $a_1 \lt b$ so we can repeat this trick by expanding
 $b/a_1$ using $k_2 = \lfloor b/a_1 \rfloor$ and $b_1 = b \bmod a_1$
